@@ -1,6 +1,6 @@
 # DefLink - Defense Industry Connector
 
-[cloudflarebutton]
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/eheimbuch/deflink-defense-industry-connector)
 
 ## Overview
 
@@ -128,7 +128,7 @@ For production:
 - Set custom domain in Cloudflare Dashboard.
 - Monitor via Cloudflare Observability.
 
-[cloudflarebutton]
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/eheimbuch/deflink-defense-industry-connector)
 
 ## Local Worker Testing
 
