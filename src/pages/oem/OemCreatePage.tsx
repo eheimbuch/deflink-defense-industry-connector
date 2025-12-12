@@ -2,8 +2,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useNavigate } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -11,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageContainer } from '@/components/layout/PageContainer';
-import { Toaster, toast } from 'sonner';
+import { Toaster, toast } from '@/components/ui/sonner';
 import { Checkbox } from '@/components/ui/checkbox';
 const oemRequestSchema = z.object({
   unternehmen: z.string().min(2, { message: "Unternehmensname ist erforderlich." }),
@@ -21,28 +19,11 @@ const oemRequestSchema = z.object({
   betreff: z.string().min(5, { message: "Betreff ist erforderlich." }),
   beschreibung: z.string().min(20, { message: "Beschreibung muss mindestens 20 Zeichen lang sein." }),
   kategorie: z.enum(['Software', 'Hardware', 'Systemintegration', 'KI/Data', 'Beratung']).optional(),
-  zeitraum: z.string().optional(),
   datenschutz: z.boolean().refine(val => val === true, { message: "Sie müssen den Datenschutzhinweisen zustimmen." }),
 });
-type OemRequestFormValues = z.infer<typeof oemRequestSchema>;
 export function OemCreatePage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const mutation = useMutation({
-    mutationFn: (values: OemRequestFormValues) => api('/api/oem/requests', {
-      method: 'POST',
-      body: JSON.stringify(values),
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['oem-requests'] });
-      toast.success('Bedarf erfolgreich übermittelt!');
-      setTimeout(() => navigate('/oem/dashboard'), 1500);
-    },
-    onError: (error) => {
-      toast.error('Fehler beim Senden des Bedarfs.', { description: error.message });
-    }
-  });
-  const form = useForm<OemRequestFormValues>({
+  const form = useForm<z.infer<typeof oemRequestSchema>>({
     resolver: zodResolver(oemRequestSchema),
     defaultValues: {
       unternehmen: '',
@@ -51,12 +32,13 @@ export function OemCreatePage() {
       telefon: '',
       betreff: '',
       beschreibung: '',
-      zeitraum: '',
       datenschutz: false,
     },
   });
-  function onSubmit(values: OemRequestFormValues) {
-    mutation.mutate(values);
+  function onSubmit(values: z.infer<typeof oemRequestSchema>) {
+    console.log(values);
+    toast.success('Bedarf erfolgreich übermittelt!');
+    setTimeout(() => navigate('/oem/dashboard'), 1500);
   }
   return (
     <PageContainer>
@@ -113,33 +95,24 @@ export function OemCreatePage() {
                   <FormMessage />
                 </FormItem>
               )} />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField control={form.control} name="kategorie" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Kategorie (Optional)</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger><SelectValue placeholder="Wählen Sie eine Kategorie" /></SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Software">Software</SelectItem>
-                        <SelectItem value="Hardware">Hardware</SelectItem>
-                        <SelectItem value="Systemintegration">Systemintegration</SelectItem>
-                        <SelectItem value="KI/Data">KI/Data</SelectItem>
-                        <SelectItem value="Beratung">Beratung</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="zeitraum" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Zeitraum (Optional)</FormLabel>
-                    <FormControl><Input placeholder="z.B. Q3 2026" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
+              <FormField control={form.control} name="kategorie" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Kategorie (Optional)</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue placeholder="Wählen Sie eine Kategorie" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="Software">Software</SelectItem>
+                      <SelectItem value="Hardware">Hardware</SelectItem>
+                      <SelectItem value="Systemintegration">Systemintegration</SelectItem>
+                      <SelectItem value="KI/Data">KI/Data</SelectItem>
+                      <SelectItem value="Beratung">Beratung</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
               <FormField control={form.control} name="datenschutz" render={({ field }) => (
                 <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
                   <FormControl>
@@ -155,10 +128,8 @@ export function OemCreatePage() {
                 </FormItem>
               )} />
               <div className="flex justify-end gap-4">
-                <Button type="button" variant="outline" onClick={() => navigate(-1)} disabled={mutation.isPending}>Abbrechen</Button>
-                <Button type="submit" disabled={mutation.isPending}>
-                  {mutation.isPending ? 'Wird gesendet...' : 'Bedarf absenden'}
-                </Button>
+                <Button type="button" variant="outline" onClick={() => navigate(-1)}>Abbrechen</Button>
+                <Button type="submit">Bedarf absenden</Button>
               </div>
             </form>
           </Form>
