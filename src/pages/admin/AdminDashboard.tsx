@@ -11,6 +11,7 @@ import { OemRequestsTable } from '@/components/admin/OemRequestsTable';
 import { ProvidersTable } from '@/components/admin/ProvidersTable';
 import { SettingsTab } from '@/components/admin/SettingsTab';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent } from '@/components/ui/card';
 export function AdminDashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -37,7 +38,7 @@ export function AdminDashboard() {
   const deleteOemMutation = useMutation({
     mutationFn: (id: string) => api(`/api/admin/oem-requests/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
-      toast.success('Bedarf gelöscht.');
+      toast.success('Bedarf gel��scht.');
       queryClient.invalidateQueries({ queryKey: ['admin-oem-requests'] });
     },
     onError: (err: Error) => toast.error('Fehler beim Löschen.', { description: err.message }),
