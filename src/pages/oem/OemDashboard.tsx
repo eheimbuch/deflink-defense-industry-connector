@@ -1,11 +1,13 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageContainer } from '@/components/layout/PageContainer';
-import { PlusCircle, Building, Calendar, Tag } from 'lucide-react';
-import { MOCK_OEM_REQUESTS } from '@/lib/mock-data-deflink';
-import { OemRequest } from '@/types/domain';
+import { PlusCircle, Building, Calendar, Tag, Loader2 } from 'lucide-react';
+import type { OemRequest } from '@shared/types';
+import { Skeleton } from '@/components/ui/skeleton';
 function OemRequestCard({ request }: { request: OemRequest }) {
   return (
     <Card className="flex flex-col h-full hover:shadow-lg transition-shadow duration-300">
@@ -33,6 +35,19 @@ function OemRequestCard({ request }: { request: OemRequest }) {
   );
 }
 export function OemDashboard() {
+  const navigate = useNavigate();
+  const { data: requests, isLoading, error } = useQuery<OemRequest[], Error>({
+    queryKey: ['oem-requests'],
+    queryFn: () => api('/api/oem/requests'),
+    retry: (failureCount, error: any) => {
+      if (error.message.includes('401')) return false;
+      return failureCount < 3;
+    },
+  });
+  if (error && error.message.includes('401')) {
+    navigate('/oem/login');
+    return null;
+  }
   return (
     <PageContainer>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -46,9 +61,24 @@ export function OemDashboard() {
           </Link>
         </Button>
       </div>
-      {MOCK_OEM_REQUESTS.length > 0 ? (
+      {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {MOCK_OEM_REQUESTS.map((request) => (
+          {[...Array(3)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader>
+              <CardContent><Skeleton className="h-16 w-full" /></CardContent>
+              <CardFooter><Skeleton className="h-4 w-1/2" /></CardFooter>
+            </Card>
+          ))}
+        </div>
+      ) : error ? (
+        <div className="text-center py-16 border-2 border-dashed rounded-lg text-destructive">
+          <h3 className="text-xl font-semibold">Fehler beim Laden der Daten</h3>
+          <p className="text-muted-foreground mt-2">{error.message}</p>
+        </div>
+      ) : requests && requests.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {requests.map((request) => (
             <OemRequestCard key={request.id} request={request} />
           ))}
         </div>

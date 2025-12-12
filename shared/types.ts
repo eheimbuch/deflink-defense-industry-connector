@@ -3,22 +3,29 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
 }
-
-// Minimal real-world chat example types (shared by frontend and worker)
-export interface User {
+export interface OemRequest {
   id: string;
-  name: string;
+  unternehmen: string;
+  ansprechpartner: string;
+  email: string;
+  telefon?: string;
+  betreff: string;
+  beschreibung:string;
+  kategorie?: 'Software' | 'Hardware' | 'Systemintegration' | 'KI/Data' | 'Beratung';
+  zeitraum?: string;
+  erstelltAm: string;
 }
-
-export interface Chat {
+export interface ProviderProfile {
   id: string;
-  title: string;
-}
-
-export interface ChatMessage {
-  id: string;
-  chatId: string;
-  userId: string;
-  text: string;
-  ts: number; // epoch millis
+  firmenname: string;
+  ansprechpartner: string;
+  email: string;
+  telefon?: string;
+  logoUrl?: string;
+  kurzbeschreibung: string;
+  beschreibung: string;
+  schwerpunkte: ('Softwareentwicklung' | 'KI & Data' | 'Systemintegration' | 'Prototypen/MVP' | 'Beratung/Strategie' | 'Sonstiges')[];
+  standort: string;
+  website?: string;
+  status: 'draft' | 'freigeschaltet';
 }

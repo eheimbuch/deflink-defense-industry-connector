@@ -1,28 +1,34 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useMutation } from '@tanstack/react-query';
+import { api } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ShieldCheck, LogIn } from 'lucide-react';
-import { Toaster, toast } from '@/components/ui/sonner';
+import { Toaster, toast } from 'sonner';
 export function OemLoginPage() {
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const mutation = useMutation({
+    mutationFn: (password: string) => api('/api/auth/oem-login', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    }),
+    onSuccess: () => {
+      toast.success('Login erfolgreich!');
+      navigate('/oem/dashboard');
+    },
+    onError: () => {
+      toast.error('Falsches Passwort. Bitte versuchen Sie es erneut.');
+    },
+  });
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    // Mock password check
-    setTimeout(() => {
-      if (password === 'password123') { // In a real app, this would be an API call
-        toast.success('Login erfolgreich!');
-        navigate('/oem/dashboard');
-      } else {
-        toast.error('Falsches Passwort. Bitte versuchen Sie es erneut.');
-        setIsLoading(false);
-      }
-    }, 1000);
+    if (password) {
+      mutation.mutate(password);
+    }
   };
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-4">
@@ -46,13 +52,13 @@ export function OemLoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                disabled={isLoading}
+                disabled={mutation.isPending}
               />
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Anmelden...' : <> <LogIn className="mr-2 h-4 w-4" /> Anmelden </>}
+            <Button type="submit" className="w-full" disabled={mutation.isPending}>
+              {mutation.isPending ? 'Anmelden...' : <> <LogIn className="mr-2 h-4 w-4" /> Anmelden </>}
             </Button>
           </CardFooter>
         </form>

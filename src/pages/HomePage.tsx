@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, Variants } from 'framer-motion';
 import { ArrowRight, ShieldCheck, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 export function HomePage() {
-  const containerVariants = {
+  const containerVariants: Variants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
@@ -14,14 +14,15 @@ export function HomePage() {
       },
     },
   };
-  const itemVariants = {
+  const itemVariants: Variants = {
     hidden: { y: 20, opacity: 0 },
     visible: {
       y: 0,
       opacity: 1,
       transition: {
-        type: 'spring',
-        stiffness: 100,
+        type: 'tween',
+        ease: 'easeOut',
+        duration: 0.5,
       },
     },
   };

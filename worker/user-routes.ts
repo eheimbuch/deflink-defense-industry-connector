@@ -1,75 +1,101 @@
 import { Hono } from "hono";
 import type { Env } from './core-utils';
-import { UserEntity, ChatBoardEntity } from "./entities";
+import { SettingsEntity, OemRequestEntity, ProviderProfileEntity } from "./entities";
 import { ok, bad, notFound, isStr } from './core-utils';
-
+import type { OemRequest, ProviderProfile } from "@shared/types";
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
-  app.get('/api/test', (c) => c.json({ success: true, data: { name: 'CF Workers Demo' }}));
-
-  // USERS
-  app.get('/api/users', async (c) => {
-    await UserEntity.ensureSeed(c.env);
-    const cq = c.req.query('cursor');
-    const lq = c.req.query('limit');
-    const page = await UserEntity.list(c.env, cq ?? null, lq ? Math.max(1, (Number(lq) | 0)) : undefined);
-    return ok(c, page);
+  app.get('/api/test', (c) => c.json({ success: true, data: { name: 'DefLink API' }}));
+  // AUTH
+  app.post('/api/auth/oem-login', async (c) => {
+    const { password } = (await c.req.json()) as { password?: string };
+    if (!isStr(password)) return bad(c, 'Passwort erforderlich');
+    await SettingsEntity.ensureSeed(c.env);
+    const settings = new SettingsEntity(c.env);
+    const { oemPasswordHash } = await settings.getState();
+    const inputHash = await hashPassword(password);
+    if (inputHash === oemPasswordHash) {
+      const cookie = 'oemSession=valid; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=86400';
+      c.header('Set-Cookie', cookie);
+      return ok(c, { loggedIn: true });
+    }
+    return c.json({ success: false, error: 'Ungültiges Passwort' }, 401);
   });
-
-  app.post('/api/users', async (c) => {
-    const { name } = (await c.req.json()) as { name?: string };
-    if (!name?.trim()) return bad(c, 'name required');
-    return ok(c, await UserEntity.create(c.env, { id: crypto.randomUUID(), name: name.trim() }));
+  // OEM REQUESTS (Protected)
+  const oemRoutes = new Hono<{ Bindings: Env }>();
+  oemRoutes.use('*', async (c, next) => {
+    const cookie = c.req.header('cookie') || '';
+    if (cookie.includes('oemSession=valid')) {
+      await next();
+    } else {
+      return c.json({ success: false, error: 'Nicht autorisiert' }, 401);
+    }
   });
-
-  // CHATS
-  app.get('/api/chats', async (c) => {
-    await ChatBoardEntity.ensureSeed(c.env);
-    const cq = c.req.query('cursor');
-    const lq = c.req.query('limit');
-    const page = await ChatBoardEntity.list(c.env, cq ?? null, lq ? Math.max(1, (Number(lq) | 0)) : undefined);
-    return ok(c, page);
+  oemRoutes.get('/requests', async (c) => {
+    await OemRequestEntity.ensureSeed(c.env);
+    const page = await OemRequestEntity.list(c.env, null, 100); // Fetch up to 100
+    // Sort descending by date
+    const sortedItems = page.items.sort((a, b) => {
+        const dateA = a.erstelltAm.split('.').reverse().join('-');
+        const dateB = b.erstelltAm.split('.').reverse().join('-');
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
+    });
+    return ok(c, sortedItems);
   });
-
-  app.post('/api/chats', async (c) => {
-    const { title } = (await c.req.json()) as { title?: string };
-    if (!title?.trim()) return bad(c, 'title required');
-    const created = await ChatBoardEntity.create(c.env, { id: crypto.randomUUID(), title: title.trim(), messages: [] });
-    return ok(c, { id: created.id, title: created.title });
+  oemRoutes.post('/requests', async (c) => {
+    const body = await c.req.json<Partial<OemRequest>>();
+    if (!body.unternehmen || !body.ansprechpartner || !body.email || !body.betreff || !body.beschreibung) {
+      return bad(c, 'Fehlende Pflichtfelder');
+    }
+    const newRequest: OemRequest = {
+      id: crypto.randomUUID(),
+      unternehmen: body.unternehmen,
+      ansprechpartner: body.ansprechpartner,
+      email: body.email,
+      telefon: body.telefon,
+      betreff: body.betreff,
+      beschreibung: body.beschreibung,
+      kategorie: body.kategorie,
+      zeitraum: body.zeitraum,
+      erstelltAm: new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    };
+    const created = await OemRequestEntity.create(c.env, newRequest);
+    return ok(c, created);
   });
-
-  // MESSAGES
-  app.get('/api/chats/:chatId/messages', async (c) => {
-    const chat = new ChatBoardEntity(c.env, c.req.param('chatId'));
-    if (!await chat.exists()) return notFound(c, 'chat not found');
-    return ok(c, await chat.listMessages());
+  app.route('/api/oem', oemRoutes);
+  // PROVIDERS (Public)
+  app.get('/api/providers', async (c) => {
+    await ProviderProfileEntity.ensureSeed(c.env);
+    const page = await ProviderProfileEntity.list(c.env, null, 100);
+    const approved = page.items.filter(p => p.status === 'freigeschaltet');
+    return ok(c, approved);
   });
-
-  app.post('/api/chats/:chatId/messages', async (c) => {
-    const chatId = c.req.param('chatId');
-    const { userId, text } = (await c.req.json()) as { userId?: string; text?: string };
-    if (!isStr(userId) || !text?.trim()) return bad(c, 'userId and text required');
-    const chat = new ChatBoardEntity(c.env, chatId);
-    if (!await chat.exists()) return notFound(c, 'chat not found');
-    return ok(c, await chat.sendMessage(userId, text.trim()));
-  });
-
-  // DELETE: Users
-  app.delete('/api/users/:id', async (c) => ok(c, { id: c.req.param('id'), deleted: await UserEntity.delete(c.env, c.req.param('id')) }));
-
-  app.post('/api/users/deleteMany', async (c) => {
-    const { ids } = (await c.req.json()) as { ids?: string[] };
-    const list = ids?.filter(isStr) ?? [];
-    if (list.length === 0) return bad(c, 'ids required');
-    return ok(c, { deletedCount: await UserEntity.deleteMany(c.env, list), ids: list });
-  });
-
-  // DELETE: Chats
-  app.delete('/api/chats/:id', async (c) => ok(c, { id: c.req.param('id'), deleted: await ChatBoardEntity.delete(c.env, c.req.param('id')) }));
-
-  app.post('/api/chats/deleteMany', async (c) => {
-    const { ids } = (await c.req.json()) as { ids?: string[] };
-    const list = ids?.filter(isStr) ?? [];
-    if (list.length === 0) return bad(c, 'ids required');
-    return ok(c, { deletedCount: await ChatBoardEntity.deleteMany(c.env, list), ids: list });
+  app.post('/api/providers', async (c) => {
+    const body = await c.req.json<Partial<ProviderProfile>>();
+     if (!body.firmenname || !body.ansprechpartner || !body.email || !body.kurzbeschreibung || !body.beschreibung || !body.standort || !body.schwerpunkte) {
+      return bad(c, 'Fehlende Pflichtfelder');
+    }
+    const newProfile: ProviderProfile = {
+      id: crypto.randomUUID(),
+      firmenname: body.firmenname,
+      ansprechpartner: body.ansprechpartner,
+      email: body.email,
+      telefon: body.telefon,
+      logoUrl: body.logoUrl,
+      kurzbeschreibung: body.kurzbeschreibung,
+      beschreibung: body.beschreibung,
+      schwerpunkte: body.schwerpunkte,
+      standort: body.standort,
+      website: body.website,
+      status: 'freigeschaltet', // For MVP, auto-approve
+    };
+    const created = await ProviderProfileEntity.create(c.env, newProfile);
+    return ok(c, created);
   });
 }
