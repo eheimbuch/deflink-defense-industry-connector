@@ -1,15 +1,9 @@
 import { Hono } from "hono";
 import type { Env } from './core-utils';
-import { SettingsEntity, OemRequestEntity, ProviderProfileEntity } from "./entities";
+import { SettingsEntity, OemRequestEntity, ProviderProfileEntity, hashPassword } from "./entities";
 import { ok, bad, notFound, isStr } from './core-utils';
 import type { OemRequest, ProviderProfile } from "@shared/types";
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
+/* Duplicate hashPassword removed – using the implementation exported from "./entities". */
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.get('/api/test', (c) => c.json({ success: true, data: { name: 'DefLink API' }}));
   // AUTH
@@ -19,16 +13,22 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     await SettingsEntity.ensureSeed(c.env);
     const settings = new SettingsEntity(c.env);
     const { oemPasswordHash } = await settings.getState();
+    console.log(`OEM login: stored hash=${oemPasswordHash.slice(0,16)}...`);
     const inputHash = await hashPassword(password);
+    console.log(`OEM login: input hash=${inputHash.slice(0,16)}...`);
+    console.log(`OEM login: match=${inputHash === oemPasswordHash}`);
     if (inputHash === oemPasswordHash) {
-      const cookie = 'oemSession=valid; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=86400';
+      console.log('OEM login SUCCESS, setting cookie');
+      const cookie = 'oemSession=valid;HttpOnly;Secure;SameSite=Lax;Path=/;Max-Age=86400';
       c.header('Set-Cookie', cookie);
       return ok(c, { loggedIn: true });
     }
+    console.log('OEM login FAIL');
+    console.log('OEM login FAIL');
     return c.json({ success: false, error: 'Ungültiges Passwort' }, 401);
   });
   app.post('/api/auth/logout', (c) => {
-    const cookie = 'oemSession=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0';
+    const cookie = 'oemSession=;HttpOnly;Secure;SameSite=Lax;Path=/;Max-Age=0';
     c.header('Set-Cookie', cookie);
     return ok(c, { loggedOut: true });
   });
@@ -36,16 +36,21 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
   const oemRoutes = new Hono<{ Bindings: Env }>();
   oemRoutes.use('*', async (c, next) => {
     const cookie = c.req.header('cookie') || '';
+    console.log(`OEM middleware cookie='${cookie}'`);
     if (cookie.includes('oemSession=valid')) {
+      console.log('OEM middleware PASS');
       await next();
     } else {
+      console.log('OEM middleware FAIL - no valid session');
       return c.json({ success: false, error: 'Nicht autorisiert' }, 401);
     }
   });
   oemRoutes.get('/requests', async (c) => {
     await OemRequestEntity.ensureSeed(c.env);
+    console.log('Serving OEM requests after auth');
     const page = await OemRequestEntity.list(c.env, null, 100); // Fetch up to 100
     const sortedItems = page.items.sort((a, b) => new Date(b.erstelltAm).getTime() - new Date(a.erstelltAm).getTime());
+    console.log(`Serving ${sortedItems.length} OEM requests`);
     return ok(c, sortedItems);
   });
   oemRoutes.post('/requests', async (c) => {
@@ -155,6 +160,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const { oemPassword } = await c.req.json<{ oemPassword?: string }>();
     if (!isStr(oemPassword)) return bad(c, 'New password is required');
     const hash = await hashPassword(oemPassword);
+    await SettingsEntity.ensureSeed(c.env);   // Ensure settings row exists
     const settings = new SettingsEntity(c.env);
     await settings.patch({ oemPasswordHash: hash });
     return ok(c, { success: true });

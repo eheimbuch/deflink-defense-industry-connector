@@ -2,7 +2,7 @@ import { Entity, IndexedEntity, type Env } from "./core-utils";
 import type { OemRequest, ProviderProfile } from "@shared/types";
 import { MOCK_OEM_REQUESTS, MOCK_PROVIDER_PROFILES } from "@shared/mock-data";
 // Utility to hash passwords
-async function hashPassword(password: string): Promise<string> {
+export async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -18,9 +18,17 @@ export class SettingsEntity extends Entity<{ oemPasswordHash: string }> {
   }
   static async ensureSeed(env: Env): Promise<void> {
     const settings = new SettingsEntity(env);
-    if (!(await settings.exists())) {
+    // Log the start of the seeding check
+    console.log('Checking if settings exists');
+    const exists = await settings.exists();
+    console.log(`Settings exists: ${exists}`);
+    if (!exists) {
+      // Log seeding actions
+      console.log('Seeding default OEM password with oem123');
       const defaultPasswordHash = await hashPassword('oem123');
+      console.log(`Computed default hash=${defaultPasswordHash.slice(0,16)}...`);
       await settings.save({ oemPasswordHash: defaultPasswordHash });
+      console.log('Settings seeded successfully');
     }
   }
 }
