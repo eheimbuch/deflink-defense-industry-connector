@@ -14,6 +14,7 @@ export interface OemRequest {
   kategorie?: 'Software' | 'Hardware' | 'Systemintegration' | 'KI/Data' | 'Beratung';
   zeitraum?: string;
   erstelltAm: string;
+  status?: 'offen' | 'erledigt';
 }
 export interface ProviderProfile {
   id: string;

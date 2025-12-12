@@ -27,6 +27,11 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     }
     return c.json({ success: false, error: 'Ungültiges Passwort' }, 401);
   });
+  app.post('/api/auth/logout', (c) => {
+    const cookie = 'oemSession=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0';
+    c.header('Set-Cookie', cookie);
+    return ok(c, { loggedOut: true });
+  });
   // OEM REQUESTS (Protected)
   const oemRoutes = new Hono<{ Bindings: Env }>();
   oemRoutes.use('*', async (c, next) => {
@@ -40,12 +45,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
   oemRoutes.get('/requests', async (c) => {
     await OemRequestEntity.ensureSeed(c.env);
     const page = await OemRequestEntity.list(c.env, null, 100); // Fetch up to 100
-    // Sort descending by date
-    const sortedItems = page.items.sort((a, b) => {
-        const dateA = a.erstelltAm.split('.').reverse().join('-');
-        const dateB = b.erstelltAm.split('.').reverse().join('-');
-        return new Date(dateB).getTime() - new Date(dateA).getTime();
-    });
+    const sortedItems = page.items.sort((a, b) => new Date(b.erstelltAm).getTime() - new Date(a.erstelltAm).getTime());
     return ok(c, sortedItems);
   });
   oemRoutes.post('/requests', async (c) => {
@@ -63,7 +63,8 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       beschreibung: body.beschreibung,
       kategorie: body.kategorie,
       zeitraum: body.zeitraum,
-      erstelltAm: new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+      erstelltAm: new Date().toISOString(),
+      status: 'offen',
     };
     const created = await OemRequestEntity.create(c.env, newRequest);
     return ok(c, created);
@@ -73,7 +74,9 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.get('/api/providers', async (c) => {
     await ProviderProfileEntity.ensureSeed(c.env);
     const page = await ProviderProfileEntity.list(c.env, null, 100);
-    const approved = page.items.filter(p => p.status === 'freigeschaltet');
+    const approved = page.items
+      .filter(p => p.status === 'freigeschaltet')
+      .sort((a, b) => a.firmenname.localeCompare(b.firmenname));
     return ok(c, approved);
   });
   app.post('/api/providers', async (c) => {
@@ -93,9 +96,68 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       schwerpunkte: body.schwerpunkte,
       standort: body.standort,
       website: body.website,
-      status: 'freigeschaltet', // For MVP, auto-approve
+      status: 'draft',
     };
     const created = await ProviderProfileEntity.create(c.env, newProfile);
     return ok(c, created);
   });
+  // ADMIN ROUTES (Protected)
+  const adminRoutes = new Hono<{ Bindings: Env }>();
+  adminRoutes.use('*', async (c, next) => {
+    const cookie = c.req.header('cookie') || '';
+    if (cookie.includes('oemSession=valid')) {
+      await next();
+    } else {
+      return c.json({ success: false, error: 'Nicht autorisiert' }, 401);
+    }
+  });
+  // Admin: OEM Requests
+  adminRoutes.get('/oem-requests', async (c) => {
+    const page = await OemRequestEntity.list(c.env, null, 200);
+    const sorted = page.items.sort((a, b) => new Date(b.erstelltAm).getTime() - new Date(a.erstelltAm).getTime());
+    return ok(c, sorted);
+  });
+  adminRoutes.patch('/oem-requests/:id', async (c) => {
+    const id = c.req.param('id');
+    const body = await c.req.json<Partial<OemRequest>>();
+    const entity = new OemRequestEntity(c.env, id);
+    if (!(await entity.exists())) return notFound(c);
+    await entity.patch(body);
+    return ok(c, await entity.getState());
+  });
+  adminRoutes.delete('/oem-requests/:id', async (c) => {
+    const id = c.req.param('id');
+    const deleted = await OemRequestEntity.delete(c.env, id);
+    return ok(c, { deleted });
+  });
+  // Admin: Providers
+  adminRoutes.get('/providers', async (c) => {
+    const page = await ProviderProfileEntity.list(c.env, null, 200);
+    const sorted = page.items.sort((a, b) => a.firmenname.localeCompare(b.firmenname));
+    return ok(c, sorted);
+  });
+  adminRoutes.patch('/providers/:id', async (c) => {
+    const id = c.req.param('id');
+    const body = await c.req.json<{ status?: 'draft' | 'freigeschaltet' }>();
+    if (!body.status) return bad(c, 'Status is required');
+    const entity = new ProviderProfileEntity(c.env, id);
+    if (!(await entity.exists())) return notFound(c);
+    await entity.patch({ status: body.status });
+    return ok(c, await entity.getState());
+  });
+  adminRoutes.delete('/providers/:id', async (c) => {
+    const id = c.req.param('id');
+    const deleted = await ProviderProfileEntity.delete(c.env, id);
+    return ok(c, { deleted });
+  });
+  // Admin: Settings
+  adminRoutes.patch('/settings', async (c) => {
+    const { oemPassword } = await c.req.json<{ oemPassword?: string }>();
+    if (!isStr(oemPassword)) return bad(c, 'New password is required');
+    const hash = await hashPassword(oemPassword);
+    const settings = new SettingsEntity(c.env);
+    await settings.patch({ oemPasswordHash: hash });
+    return ok(c, { success: true });
+  });
+  app.route('/api/admin', adminRoutes);
 }

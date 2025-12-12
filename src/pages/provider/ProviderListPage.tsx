@@ -2,13 +2,14 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageContainer } from '@/components/layout/PageContainer';
-import { PlusCircle, MapPin, Tag } from 'lucide-react';
+import { PlusCircle, MapPin, Tag, Mail, Phone, Globe } from 'lucide-react';
 import type { ProviderProfile } from '@shared/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 function ProviderCard({ provider }: { provider: ProviderProfile }) {
   return (
     <Card className="flex flex-col h-full hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
@@ -29,15 +30,41 @@ function ProviderCard({ provider }: { provider: ProviderProfile }) {
           <span>{provider.standort}</span>
         </div>
       </CardContent>
-      <CardContent>
+      <CardFooter className="flex justify-between items-center">
         <div className="flex flex-wrap gap-2">
-          {provider.schwerpunkte.map((tag) => (
+          {provider.schwerpunkte.slice(0, 2).map((tag) => (
             <Badge key={tag} variant="secondary" className="flex items-center gap-1">
               <Tag className="h-3 w-3" /> {tag}
             </Badge>
           ))}
         </div>
-      </CardContent>
+        <HoverCard>
+          <HoverCardTrigger asChild>
+            <Button variant="link" className="p-0 h-auto">Kontakt anzeigen</Button>
+          </HoverCardTrigger>
+          <HoverCardContent className="w-80">
+            <div className="space-y-2">
+              <h4 className="font-semibold">{provider.firmenname}</h4>
+              <div className="flex items-center pt-2">
+                <Mail className="mr-2 h-4 w-4 opacity-70" />
+                <span className="text-xs text-muted-foreground">{provider.email}</span>
+              </div>
+              {provider.telefon && (
+                <div className="flex items-center">
+                  <Phone className="mr-2 h-4 w-4 opacity-70" />
+                  <span className="text-xs text-muted-foreground">{provider.telefon}</span>
+                </div>
+              )}
+              {provider.website && (
+                <div className="flex items-center">
+                  <Globe className="mr-2 h-4 w-4 opacity-70" />
+                  <a href={provider.website} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:underline">{provider.website}</a>
+                </div>
+              )}
+            </div>
+          </HoverCardContent>
+        </HoverCard>
+      </CardFooter>
     </Card>
   );
 }

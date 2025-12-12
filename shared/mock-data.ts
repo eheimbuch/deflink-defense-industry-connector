@@ -10,6 +10,7 @@ export const MOCK_OEM_REQUESTS: OemRequest[] = [
     kategorie: 'Software',
     zeitraum: 'Q2 2026 - Q4 2026',
     erstelltAm: '10.12.2025',
+    status: 'offen',
   },
   {
     id: 'req-002',
@@ -21,6 +22,7 @@ export const MOCK_OEM_REQUESTS: OemRequest[] = [
     kategorie: 'KI/Data',
     zeitraum: 'Ab sofort',
     erstelltAm: '08.12.2025',
+    status: 'offen',
   },
   {
     id: 'req-003',
@@ -32,6 +34,7 @@ export const MOCK_OEM_REQUESTS: OemRequest[] = [
     kategorie: 'Hardware',
     zeitraum: '3 Monate',
     erstelltAm: '05.12.2025',
+    status: 'offen',
   },
 ];
 export const MOCK_PROVIDER_PROFILES: ProviderProfile[] = [

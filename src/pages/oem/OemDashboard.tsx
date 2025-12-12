@@ -1,11 +1,11 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageContainer } from '@/components/layout/PageContainer';
-import { PlusCircle, Building, Calendar, Tag, Loader2 } from 'lucide-react';
+import { PlusCircle, Building, Calendar, Tag, LogOut } from 'lucide-react';
 import type { OemRequest } from '@shared/types';
 import { Skeleton } from '@/components/ui/skeleton';
 function OemRequestCard({ request }: { request: OemRequest }) {
@@ -23,7 +23,7 @@ function OemRequestCard({ request }: { request: OemRequest }) {
       <CardFooter className="flex flex-col items-start gap-2 pt-4">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Calendar className="h-4 w-4" />
-          <span>Erstellt am: {request.erstelltAm}</span>
+          <span>Erstellt am: {new Date(request.erstelltAm).toLocaleDateString('de-DE')}</span>
         </div>
         {request.kategorie && (
           <Badge variant="secondary" className="flex items-center gap-1">
@@ -40,11 +40,15 @@ export function OemDashboard() {
     queryKey: ['oem-requests'],
     queryFn: () => api('/api/oem/requests'),
     retry: (failureCount, error: any) => {
-      if (error.message.includes('401')) return false;
+      if (error.message.includes('401') || error.message.includes('Nicht autorisiert')) return false;
       return failureCount < 3;
     },
   });
-  if (error && error.message.includes('401')) {
+  const logoutMutation = useMutation({
+    mutationFn: () => api('/api/auth/logout', { method: 'POST' }),
+    onSuccess: () => navigate('/'),
+  });
+  if (error && (error.message.includes('401') || error.message.includes('Nicht autorisiert'))) {
     navigate('/oem/login');
     return null;
   }
@@ -55,11 +59,16 @@ export function OemDashboard() {
           <h1 className="text-3xl font-bold tracking-tight">OEM Bedarfsübersicht</h1>
           <p className="text-muted-foreground">Hier finden Sie alle aktuell eingetragenen Bedarfe.</p>
         </div>
-        <Button asChild>
-          <Link to="/oem/create">
-            <PlusCircle className="mr-2 h-4 w-4" /> Neuen Bedarf eintragen
-          </Link>
-        </Button>
+        <div className="flex items-center gap-4">
+          <Button asChild>
+            <Link to="/oem/create">
+              <PlusCircle className="mr-2 h-4 w-4" /> Neuen Bedarf eintragen
+            </Link>
+          </Button>
+          <Button variant="outline" onClick={() => logoutMutation.mutate()}>
+            <LogOut className="mr-2 h-4 w-4" /> Abmelden
+          </Button>
+        </div>
       </div>
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -18,6 +18,7 @@ import { OemDashboard } from '@/pages/oem/OemDashboard';
 import { OemCreatePage } from '@/pages/oem/OemCreatePage';
 import { ProviderListPage } from '@/pages/provider/ProviderListPage';
 import { ProviderRegisterPage } from '@/pages/provider/ProviderRegisterPage';
+import { AdminDashboard } from '@/pages/admin/AdminDashboard';
 const queryClient = new QueryClient();
 const router = createBrowserRouter([
   {
@@ -31,6 +32,7 @@ const router = createBrowserRouter([
       { path: "oem/create", element: <OemCreatePage /> },
       { path: "providers", element: <ProviderListPage /> },
       { path: "providers/register", element: <ProviderRegisterPage /> },
+      { path: "admin", element: <AdminDashboard /> },
     ],
   },
 ]);

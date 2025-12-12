@@ -36,6 +36,7 @@ export class OemRequestEntity extends IndexedEntity<OemRequest> {
     betreff: "",
     beschreibung: "",
     erstelltAm: "",
+    status: "offen",
   };
   static seedData = MOCK_OEM_REQUESTS;
 }
